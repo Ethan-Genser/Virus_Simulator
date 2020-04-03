@@ -9,12 +9,9 @@ html, body {
 }
 canvas { 
 	background: #dddddd; 
-	display: inline-block; 
 	margin: 0 auto; 
-}
-#left {
 	float: left;
 }
-#right {
-	float: left;
+div {
+	white-space: nowrap;
 }
