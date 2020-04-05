@@ -18,10 +18,10 @@
 
 		<div id="ui-container">	
 			<div class="header-container top-header">
-				<p>Population: <span id="population-disp"></span></p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the total number of subjects in the simulation. Each dot represents a single person.&nbsp;</span></div>&nbsp;&nbsp;Population: <span id="population-disp"></span></p>
 			</div>
 			<div class="header-container top-header">
-				<p>Number of families: <span id="family-disp"></span></p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the number of separted boxes the population can roam within. Each box represents people that you may come into contact with on a daily basis such as your immediate family or roomate.&nbsp;</span></div>&nbsp;&nbsp;Number of families: <span id="family-disp"></span></p>
 			</div>
 			<br>
 			<br>
@@ -29,10 +29,10 @@
 			<input type="range" min="1" max="9" value="1" class="slider" id="family-slider">
 			<br>
 			<div class="header-container">
-				<p>Infectivity: <span id="infectivity-disp"></span>%</p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the probability that a person will become infected for each second within an infected individual's transmission range. This represents how effectively hygienic the population is, i.e., handwashing, covering sneezes, etc.&nbsp;</span></div>&nbsp;&nbsp;Infectivity: <span id="infectivity-disp"></span>%</p>
 			</div>
 			<div class="header-container">
-				<p>Transmition radius: <span id="radius-disp"></span> inches</p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the radius around an individual where other could become infected. This represents the pathogen's means of propogation, i.e., sneezes, physical contact, etc.&nbsp;</span></div>&nbsp;&nbsp;Transmission radius: <span id="radius-disp"></span> inches</p>
 			</div>
 			<br>
 			<br>
@@ -40,10 +40,10 @@
 			<input type="range" min="2" max="50" value="20" class="slider" id="radius-slider">
 			<br>
 			<div class="header-container">
-				<p>Interpersonal social distancing: <span id="distancing-disp"></span>%</p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the probability that an individual will restrain itself from moving within another individual's transmission radius. This represents maintaining a safe distance between people.&nbsp;</span></div>&nbsp;&nbsp;Interpersonal social distancing: <span id="distancing-disp"></span>%</p>
 			</div>
 			<div class="header-container">
-				<p>Interfamilial social distancing: <span id="family-distancing-disp"></span>%</p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the probability that an individual will restrain itself from visiting individuals outside of its family group. This represents meeting family or friends that you would not normally come into contact with on a daily basis.&nbsp;</span></div>&nbsp;&nbsp;Interfamilial social distancing: <span id="family-distancing-disp"></span>%</p>
 			</div>
 			<br>
 			<br>
@@ -51,10 +51,10 @@
 			<input type="range" min="0" max="100" value="0" class="slider" id="family-distancing-slider">
 			<br>
 			<div class="header-container">
-				<p>Common zone avoidance: <span id="meeting-distancing-disp"></span>%</p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the probability that an individual will restrain itself from visiting a common meeting area. This represents staying away from location with high foot traffic such as stores, trains, etc.&nbsp;</span></div>&nbsp;&nbsp;Common zone avoidance: <span id="meeting-distancing-disp"></span>%</p>
 			</div>
 			<div class="header-container">
-				<p>Duration: <span id="duration-disp"></span> seconds</p>
+				<p><div class="tooltip material-icons">info<span class="tooltiptext">&nbsp;This is the amount of time it take an individual to recover from an infection and become immune.&nbsp;</span></div>&nbsp;&nbsp;Duration: <span id="duration-disp"></span> seconds</p>
 			</div>
 			<br>
 			<br>
