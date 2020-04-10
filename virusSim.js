@@ -1,7 +1,9 @@
 var simCanvas = document.getElementById("sim-canvas");
 var simCtx = simCanvas.getContext("2d");
-simCtx.canvas.width = window.innerWidth/2;
-simCtx.canvas.height = window.innerHeight;
+simCtx.canvas.style.width = "100%";
+simCtx.canvas.style.height = "100%";
+simCtx.canvas.width = simCtx.canvas.offsetWidth;
+simCtx.canvas.height = simCtx.canvas.offsetHeight;
 var chartCanvas = document.getElementById("chart-canvas");
 var chartCtx = chartCanvas.getContext("2d");
 chartCtx.canvas.width = window.innerWidth/2;
@@ -42,7 +44,8 @@ var infectivityRadius = 20;
 var socialDistancing = 1.0;
 var interfamilyDistancing = 1.0;
 var meetingDistancing = 1.0;
-var durationOfInfection = 15;
+var durationOfInfection = 15; // seconds
+var meetingZoneSize = 80;
 var familyPadding = 0.1;
 var familyColumns = 0;
 var familyRows = 0;
@@ -54,7 +57,7 @@ var susceptibleColor = "#4bc0c0";
 var infectedColor = "#f57842";
 var removedColor = "#636363";
 var subjectRadius = 10;
-var subjectMaxVelocity = 1;
+var subjectMaxVelocity = 1.0;
 var INFECTED = 1;
 var infectedPopulation = 1;
 var SUSCEPTIBLE = 0;
@@ -66,6 +69,7 @@ var lastTime = Date.now();
 var seconds = 0;
 var isRunning = false;
 var isComplete = false;
+var updateRate = 1000; // miliseconds
 
 var chart = new Chart(chartCtx, {
 	"type": "line",
@@ -99,6 +103,7 @@ var chart = new Chart(chartCtx, {
 	}
 });
 
+// Game rule sliders
 populationSlider.oninput = function() {
 	population = populationSlider.value;
 	populationDisp.innerHTML = populationSlider.value;
@@ -138,6 +143,7 @@ durationSlider.oninput = function() {
 	durationOfInfection = durationSlider.value;
 	durationDisp.innerHTML = durationSlider.value;
 }
+// Buttons
 playButton.onclick = function() {
 	if (isComplete) {
 		reset();
@@ -155,6 +161,13 @@ resetButton.onclick = function() {
 }
 
 function reset() {
+	/* Resets the simulation to its original state, resets the
+	 * populations and their respective datasets, and recalculates
+	 * the positions and sizes of families and subjects.
+	 * 
+	 * ~returns: void
+	 */
+
 	isRunning = false;
 	isComplete = false;
 	infectedPopulation = 1;
@@ -171,6 +184,15 @@ function reset() {
 }
 
 function findFamilySize() {
+	/* Returns the width and height of the family containers. This
+	 * is achieved by first determining the layout of the families,
+	 * that is, the rows and collumns, and then calculating the
+	 * largest size that would allow each family container to remain
+	 * on screen at one time, accounting for padding and the meeting zone.
+	 * 
+	 * ~returns: int
+	 */
+
 	// Finds the number of columns
 	if (numOfFamilies <=3) {
 		familyColumns = 1;
@@ -193,15 +215,23 @@ function findFamilySize() {
 		familyRows = numOfFamilies;
 	}
 
-	return ((simCanvas.width)/Math.max(familyRows, familyColumns)) * (1 - familyPadding);
+	var size = ((simCanvas.width - meetingZoneSize)/Math.max(familyRows, familyColumns)) * (1 - familyPadding);
+	return size;
 }
 
 function generateFamilies() {
+	/* Calculates the correct position for each family container
+	 * and returns and array of objects containing the position,
+	 * width, and height of each family container.
+	 * 
+	 * ~returns: {int, int, int, int}
+	 */
+
 	var _families = [];
 	for (var x = 0; x < familyColumns; x++) {
 		for (var y = 0; y < familyRows; y++) {
 			var index = x * familyRows + y;
-			var posX = (familySize*familyPadding) + (x*familySize + (x)*familySize*(familyPadding));
+			var posX = meetingZoneSize + ((familySize*familyPadding) + (x*familySize + (x)*familySize*(familyPadding)));
 			var posY = y*familySize + (y+1)*familySize*(familyPadding);
 			if (familyRows > familyColumns) {
 				posX = posX + (((familyRows - familyColumns) / 2) * familySize)
@@ -214,12 +244,23 @@ function generateFamilies() {
 }
 
 function generateSubjects() {
+	/* Randomizes the positions and families of the subjects and
+	 * assigns the final subject to be the initially infected
+	 * subject. Returns and array of objects containing the position,
+	 * infection status, velocity, family, time of infection, and
+	 * the current size of the drawnInfectionRadius.
+	 * 
+	 * ~returns: {int, int, bool, bool, float, float, int, int, int}
+	 */
+
 	var _subjects = [];
 	for (var i = 0; i < population; i++) {
 		var family = Math.floor(Math.random() * numOfFamilies);
 		var posX = families[family].x + Math.floor(Math.random() * familySize);
 		var posY = families[family].y + Math.floor(Math.random() * familySize);
 		_subjects[i] = {x: posX, y: posY, isInfected: false, isRemoved: false, velX: 0.0, velY: 0.0, family: family, timeOfInfection: 0, drawnInfectionRadius: 0}
+		
+		// Assigning the initially infected subject
 		if (i == population-1) {
 			_subjects[i].isInfected = true;
 			_subjects[i].timeOfInfection = Date.now();
@@ -233,6 +274,16 @@ function generateSubjects() {
 }
 
 function updateSubjects() {
+	/* Randomizes each subjects' movement, updates their positions
+	 * according to their velocities, handles collision detection
+	 * with the subjects' family container walls, randomizes whether
+	 * a subject within an infected subjects radius will become
+	 * infected, and tracks the amount of time a subject has spent
+	 * infected, removing it after a set amount of time.
+	 * 
+	 * ~returns: void
+	 */
+
 	for (var i = 0; i < population; i++) {
 		var _family = families[subjects[i].family];
 
@@ -307,9 +358,15 @@ function updateSubjects() {
 }
 
 function updateChart() {
+	/* Pushes the current population data to the chart's datasets
+	 * on a set time interval.
+	 *
+	 * ~returns: void
+	 */
+
 	timer += Date.now() - lastTime;
 	lastTime = Date.now();
-	if (timer > 1000) {
+	if (timer > updateRate) {
 		timer = 0;
 		seconds++;
 		chart.data.labels.push(seconds);
@@ -321,59 +378,74 @@ function updateChart() {
 	chart.update();
 }
 
-function getMousePosition(canvas, event) {
-	var rectangle = canvas.getBoundingClientRect();
-    return {
-        x: event.clientX - rectangle.left,
-        y: event.clientY - rectangle.top
-    };
-}
+function drawRect(context, x, y, width, height, color, fill) {
+	/* Draws a rectangle to the given canvas context.
+	 *
+	 * ~params:
+	 * * context (canvas.context): target canvas context
+	 * * x (int): position.x
+	 * * y (int): position.y
+	 * * width (int): width
+	 * * height (int): height
+	 * * color (color): color
+	 * * fill (bool): if true, solid rectangle. if false, just an outline.
+	 * 
+	 * ~returns: void
+	 */
 
-function isInside(position, rectangle){
-    return position.x > rectangle.x && position.x < rectangle.x+rectangle.width && position.y < rectangle.y+rectangle.height && position.y > rectangle.y
-}
-
-function drawRect(context, x, y, width, height, color) {
 	context.beginPath();
 	context.rect(x, y, width, height);
-	context.fillStyle = color;
-	context.fill();
+	fill ? context.fillStyle = color : context.strokeStyle = color;
+	fill ? context.fill() : context.stroke();
 	context.closePath();
 }
 
 function drawCircle(context, x, y, radius, color, fill) {
+	/* Draws a circle to the given canvas context.
+	 *
+	 * ~params:
+	 * * context (canvas.context): target canvas context
+	 * * x (int): position.x
+	 * * y (int): position.y
+	 * * radius (int): radius
+	 * * color (color): color
+	 * * fill (bool): if true, solid circle. if false, just an outline.
+	 * 
+	 * ~returns: void
+	 */
 	context.beginPath();
 	context.arc(x, y, radius, 0, 2 * Math.PI);
-	fill ? simCtx.fillStyle = color : simCtx.strokeStyle = color;
-	fill ? simCtx.fill() : simCtx.stroke();
-	context.closePath();
-}
-
-function drawTriangle(context, pos1, pos2, pos3, color) {
-	context.beginPath();
-	context.moveTo(pos1.x, pos1.y);
-	context.lineTo(pos2.x, pos2.y);
-	context.lineTo(pos3.x, pos3.y);
-	context.fillStyle = color;
-	context.fill();
+	fill ? context.fillStyle = color : context.strokeStyle = color;
+	fill ? context.fill() : context.stroke();
 	context.closePath();
 }
 
 function draw() {
-	// Draw Families
+	/* Draws everything on screen to its respective canvas.
+	 *
+	 * ~returns: void
+	 */
+
+	// Families
 	for (var i = 0; i < numOfFamilies; i++) {
-		drawRect(simCtx, families[i].x, families[i].y, families[i].width, families[i].height, familyColor);
+		drawRect(simCtx, families[i].x, families[i].y, families[i].width, families[i].height, familyColor, true);
 	}
+
+	// Meeting zone
+	drawRect(simCtx, 1, simCtx.canvas.height/2 - meetingZoneSize/2, meetingZoneSize, meetingZoneSize, familyColor, true);
 	
-	// Draw Subjects
+	// Subjects
 	for (var i = 0; i < population; i++) {
+		// Removed subjects
 		if (subjects[i].isRemoved) {
 			drawCircle(simCtx, subjects[i].x, subjects[i].y, subjectRadius, removedColor, true);
 		}
+		// Infected subjects
 		else if (subjects[i].isInfected) {
 			drawCircle(simCtx, subjects[i].x, subjects[i].y, subjectRadius, infectedColor, true);
 			drawCircle(simCtx, subjects[i].x, subjects[i].y, subjects[i].drawnInfectionRadius, infectedColor, false);
 		}
+		// Susceptible subjects
 		else {
 			drawCircle(simCtx, subjects[i].x, subjects[i].y, subjectRadius, susceptibleColor, true);
 		}
@@ -381,6 +453,10 @@ function draw() {
 }
 
 function update() {
+	/* This is the main loop of the program, called once per tick.
+	 *
+	 * ~returns: int
+	 */
 
 	// Draws the screen
 	simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
@@ -410,6 +486,8 @@ function update() {
 		updateChart();
 	}
 	requestAnimationFrame(update);
+
+	return -1;
 }
 
 update();

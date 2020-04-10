@@ -49,6 +49,12 @@ span {
 	height: 50%;
 	float: left;
 }
+#sim-container {
+	float: right;
+	width: 48%;
+	height: 100%;
+	position: relative;
+}
 
 .tooltip {
 	position: relative;
