@@ -21,6 +21,7 @@ button {
 	margin-right: 3px;
 	margin-top: 40px;
 	border-radius: 8px;
+	background: #ededed;
 }
 span {
 	font-size: 13pt;
@@ -82,4 +83,9 @@ span {
   .tooltip:hover .tooltiptext {
 	visibility: visible;
 	opacity: 1;
+  }
+  
+  #pause-button {
+	  border-style: inset;
+	  background: #dbdbdb;
   }

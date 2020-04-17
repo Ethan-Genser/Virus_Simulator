@@ -35,6 +35,8 @@ distancingDisp.innerHTML = distancingSlider.value;
 familyDistancingDisp.innerHTML = familyDistancingSlider.value;
 meetingDistancingDisp.innerHTML = meetingDistancingSlider.value;
 durationDisp.innerHTML = durationSlider.value;
+var buttonUpColor = "#ededed"
+var buttondownColor = "#dbdbdb"
 var numOfFamilies = 1;
 var population = 100;
 var commonZone = false;
@@ -159,16 +161,25 @@ playButton.onclick = function() {
 		reset();
 	}
 
+	playButton.style = "background: " + buttondownColor + "; border-style: inset;";
+	playButton.disabled = true;
+	pauseButton.style = "background: " + buttonUpColor + "; border-style: outset;";
+	pauseButton.disabled = false;
 	isRunning = true;
 }
 pauseButton.onclick = function() {
 	if (isRunning) {
 		isRunning = false;
+		playButton.style = "background: " + buttonUpColor + "; border-style: outset;";
+		playButton.disabled = false;
+		pauseButton.style = "background: " + buttondownColor + "; border-style: inset;";
+		pauseButton.disabled = true;
 	}
 }
 resetButton.onclick = function() {
 	reset();
 }
+
 
 function reset() {
 	/* Resets the simulation to its original state, resets the
@@ -563,6 +574,10 @@ function update() {
 			}
 		}
 		if (infectedcnt == 0) {
+			playButton.style = "background: " + buttonUpColor + "; border-style: outset;";
+			playButton.disabled = false;
+			pauseButton.style = "background: " + buttondownColor + "; border-style: inset;";
+			pauseButton.disabled = true;
 			infectedPopulation = 0;
 			isRunning = false;
 			isComplete = true;
