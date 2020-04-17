@@ -166,6 +166,8 @@ playButton.onclick = function() {
 	pauseButton.style = "background: " + buttonUpColor + "; border-style: outset;";
 	pauseButton.disabled = false;
 	isRunning = true;
+
+	console.log(infectedPopulation);
 }
 pauseButton.onclick = function() {
 	if (isRunning) {
@@ -177,6 +179,10 @@ pauseButton.onclick = function() {
 	}
 }
 resetButton.onclick = function() {
+	playButton.style = "background: " + buttonUpColor + "; border-style: outset;";
+	playButton.disabled = false;
+	pauseButton.style = "background: " + buttondownColor + "; border-style: inset;";
+	pauseButton.disabled = true;
 	reset();
 }
 
@@ -191,8 +197,8 @@ function reset() {
 
 	isRunning = false;
 	isComplete = false;
-	infectedPopulation = 1;
-	susceptiblePopulation = population - 1;
+	infectedPopulation = 0;
+	susceptiblePopulation = population;
 	removedPopulation = 0;
 	familySize = findFamilySize();
 	families = generateFamilies();
@@ -566,7 +572,7 @@ function update() {
 	if (susceptiblePopulation < 0) {
 		susceptiblePopulation = 0;
 	}
-	if (infectedPopulation <= 5) {
+	if (infectedPopulation < 1) {
 		var infectedcnt = 0;
 		for (var i = 0; i < population; i++) {
 			if (subjects[i].isInfected) {
