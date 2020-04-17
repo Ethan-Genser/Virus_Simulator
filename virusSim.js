@@ -40,7 +40,7 @@ var population = 100;
 var commonZone = false;
 var infectivityRate = 0.1;
 var infectivityRadius = 20;
-var socialDistancing = 1.0;
+var socialDistancing = 0.0;
 var interfamilyDistancing = 0.0;
 var meetingDistancing = 0.0;
 var durationOfInfection = 15; // seconds
@@ -137,8 +137,9 @@ radiusSlider.oninput = function() {
 	}
 }
 distancingSlider.oninput = function() {
-	socialDistancing = 1 - distancingSlider.value/100;
+	socialDistancing = distancingSlider.value/100;
 	distancingDisp.innerHTML = distancingSlider.value;
+	reset();
 }
 familyDistancingSlider.oninput = function() {
 	interfamilyDistancing = 1 - familyDistancingSlider.value/100;
@@ -276,7 +277,8 @@ function generateSubjects() {
 		var family = Math.floor(Math.random() * numOfFamilies) + 1;
 		var posX = families[family].x + Math.floor(Math.random() * familySize);
 		var posY = families[family].y + Math.floor(Math.random() * familySize);
-		_subjects[i] = {x: posX, y: posY, isInfected: false, isRemoved: false, velX: 0.0, velY: 0.0, homeFamily: family, timeOfInfection: 0, drawnInfectionRadius: 0, isTraveling: false, currentFamily: family, timer: 0, lastTime: 0}
+		var distancing = Math.random() < socialDistancing;
+		_subjects[i] = {x: posX, y: posY, isInfected: false, isRemoved: false, velX: 0.0, velY: 0.0, homeFamily: family, timeOfInfection: 0, drawnInfectionRadius: 0, isTraveling: false, currentFamily: family, timer: 0, lastTime: 0, isDistancing: distancing}
 		
 		// Assigning the initially infected subject
 		if (i == population-1) {
@@ -298,7 +300,7 @@ function travelTo(subject, family) {
 	var destinationY = families[family].y + families[family].height/2;
 	var deltaX = destinationX - subjects[subject].x;
 	var deltaY = destinationY - subjects[subject].y;
-	var magnitude = Math.sqrt(Math.pow(deltaX, 2) + Math.pow(deltaY, 2))
+	var magnitude = Math.sqrt(Math.pow(deltaX, 2) + Math.pow(deltaY, 2));
 	subjects[subject].velX =  deltaX/magnitude * 4;
 	subjects[subject].velY = deltaY/magnitude * 4;
 }
@@ -316,24 +318,51 @@ function updateSubjects() {
 
 	for (var i = 0; i < population; i++) {
 		if (!subjects[i].isTraveling) {
-			var _family = families[subjects[i].currentFamily];
 
 			// Adds a random force to the subjects' current velocity.
 			subjects[i].velX += (Math.floor(Math.random() * 3) - 1) * inertialMultiplier;
 			subjects[i].velY += (Math.floor(Math.random() * 3) - 1) * inertialMultiplier;
 
+
+			for (var j = 0; j < population; j++) {
+				if (j != i) {
+					var distance = Math.sqrt(Math.pow(subjects[i].x - subjects[j].x, 2) + Math.pow(subjects[i].y - subjects[j].y, 2));
+					if (distance < infectivityRadius + subjectRadius) {
+						
+						// Prevents subjects from standing closely according to social distancing setting.
+						if (distance < infectivityRadius + subjectRadius && subjects[i].isDistancing) {
+							var deltaX = subjects[j].x - subjects[i].x;
+							var deltaY = subjects[j].y - subjects[i].y;
+							var magnitude = Math.sqrt(Math.pow(deltaX, 2) + Math.pow(deltaY, 2));
+							subjects[i].velX = -deltaX/magnitude;
+							subjects[i].velY = -deltaY/magnitude;
+						}
+
+						// Checks to see if the infection has spread to the subject.
+						if (subjects[j].isInfected && !subjects[i].isInfected && !subjects[i].isRemoved) {
+							if (infectivityRate > Math.random()) {
+							subjects[i].isInfected = true;
+							subjects[i].timeOfInfection = Date.now();
+							infectedPopulation++;
+							susceptiblePopulation--;
+							}
+						}
+					}
+				}
+			}
+
 			// Prevents subjects from moving outside their family.
-			if (Math.abs(subjects[i].x - _family.x) < 10) {
+			if (Math.abs(subjects[i].x - families[subjects[i].currentFamily].x) < 10) {
 				subjects[i].velX = 1
 			}
 				
-			if (_family.x+_family.width - subjects[i].x < 10) {
+			if (families[subjects[i].currentFamily].x+families[subjects[i].currentFamily].width - subjects[i].x < 10) {
 				subjects[i].velX = -1;
 			}
-			if (Math.abs(subjects[i].y - _family.y) < 10) {
+			if (Math.abs(subjects[i].y - families[subjects[i].currentFamily].y) < 10) {
 				subjects[i].velY = 1;
 			}
-			if (_family.y+_family.height - subjects[i].y < 10) {
+			if (families[subjects[i].currentFamily].y+families[subjects[i].currentFamily].height - subjects[i].y < 10) {
 				subjects[i].velY = -1;
 			}
 
@@ -350,23 +379,6 @@ function updateSubjects() {
 			else if (subjects[i].velY < -subjectMaxVelocity) {
 				subjects[i].velY += 0.1;
 			} 
-
-			// Checks to see if the infection has spread to the subject.
-			if (!subjects[i].isInfected && !subjects[i].isRemoved) {
-				for (var j = 0; j < population; j++) {
-					if (subjects[j].isInfected) {
-						var distance = Math.sqrt(Math.pow(subjects[i].x - subjects[j].x, 2) + Math.pow(subjects[i].y - subjects[j].y, 2))
-						if (distance < infectivityRadius) {
-							if (infectivityRate > Math.random()) {
-								subjects[i].isInfected = true;
-								subjects[i].timeOfInfection = Date.now();
-								infectedPopulation++;
-								susceptiblePopulation--;
-							}
-						}
-					}
-				}
-			}
 
 			// Checks if an infected subject recovers.
 			if (subjects[i].isInfected) {
@@ -404,7 +416,7 @@ function updateSubjects() {
 		subjects[i].y += subjects[i].velY;
 	}
 	
-	// Determines if a subject will go to the meeting zone.
+	// Determines if a subject will visit the meeting zone.
 	meetingVisitationTimer += Date.now() - meetingVisitationLastTime;
 	meetingVisitationLastTime = Date.now();
 	if (meetingVisitationTimer > visitationRate) {
@@ -415,6 +427,8 @@ function updateSubjects() {
 			}
 		}
 	}
+
+	// Determines if a subject will visit a family.
 	familyVisitationTimer += Date.now() - familyVisitationLastTime;
 	familyVisitationLastTime = Date.now();
 	if (familyVisitationTimer > visitationRate) {
