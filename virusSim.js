@@ -35,7 +35,6 @@ distancingDisp.innerHTML = distancingSlider.value;
 familyDistancingDisp.innerHTML = familyDistancingSlider.value;
 meetingDistancingDisp.innerHTML = meetingDistancingSlider.value;
 durationDisp.innerHTML = durationSlider.value;
-
 var numOfFamilies = 1;
 var population = 100;
 var commonZone = false;
@@ -43,9 +42,9 @@ var infectivityRate = 0.1;
 var infectivityRadius = 20;
 var socialDistancing = 1.0;
 var interfamilyDistancing = 1.0;
-var meetingDistancing = 1.0;
+var meetingDistancing = 0.0;
 var durationOfInfection = 15; // seconds
-var meetingZoneSize = 80;
+var meetingZoneSize = 100;
 var familyPadding = 0.1;
 var familyColumns = 0;
 var familyRows = 0;
@@ -64,13 +63,21 @@ var SUSCEPTIBLE = 0;
 var susceptiblePopulation = population - 1;
 var REMOVED = 2;
 var removedPopulation = 0;
-var timer = 0;
-var lastTime = Date.now();
+var visitationTimer = 0;
+var visitationLastTime = Date.now();
+var visitationRate = 1000 // miliseconds
+var visitationChance = 0.02;
+var chartTimer = 0;
+var chartLastTime = Date.now();
 var seconds = 0;
 var isRunning = false;
 var isComplete = false;
 var updateRate = 1000; // miliseconds
+var inertialMultiplier = 0.05;
+var MEETINGZONE = 0;
+var visitationDuration = 5000; // miliseconds
 
+// Chart
 var chart = new Chart(chartCtx, {
 	"type": "line",
 	"data": {
@@ -128,15 +135,15 @@ radiusSlider.oninput = function() {
 	}
 }
 distancingSlider.oninput = function() {
-	socialDistancing = distancingSlider.value/100;
+	socialDistancing = 1 - distancingSlider.value/100;
 	distancingDisp.innerHTML = distancingSlider.value;
 }
 familyDistancingSlider.oninput = function() {
-	interfamilyDistancing = familyDistancingSlider.value/100;
+	interfamilyDistancing = 1 - familyDistancingSlider.value/100;
 	familyDistancingDisp.innerHTML = familyDistancingSlider.value;
 }
 meetingDistancingSlider.oninput = function() {
-	meetingDistancing = meetingDistancingSlider.value/100;
+	meetingDistancing = 1 - meetingDistancingSlider.value/100;
 	meetingDistancingDisp.innerHTML = meetingDistancingSlider.value;
 }
 durationSlider.oninput = function() {
@@ -180,7 +187,16 @@ function reset() {
 	chart.data.datasets[SUSCEPTIBLE].data = [];
 	chart.data.datasets[INFECTED].data = [];
 	chart.data.datasets[REMOVED].data = [];
-	
+	seconds = 0;
+}
+
+function isInside(position, rectangle){
+    return (
+		   position.x > rectangle.x
+		&& position.x < rectangle.x+rectangle.width
+		&& position.y < rectangle.y+rectangle.height
+		&& position.y > rectangle.y
+	);
 }
 
 function findFamilySize() {
@@ -228,9 +244,10 @@ function generateFamilies() {
 	 */
 
 	var _families = [];
+	_families[0] = {x: 1, y: simCtx.canvas.height/2 - meetingZoneSize/2, width: meetingZoneSize, height: meetingZoneSize};
 	for (var x = 0; x < familyColumns; x++) {
 		for (var y = 0; y < familyRows; y++) {
-			var index = x * familyRows + y;
+			var index = x * familyRows + y + 1;
 			var posX = meetingZoneSize + ((familySize*familyPadding) + (x*familySize + (x)*familySize*(familyPadding)));
 			var posY = y*familySize + (y+1)*familySize*(familyPadding);
 			if (familyRows > familyColumns) {
@@ -239,7 +256,6 @@ function generateFamilies() {
 			_families[index] = {x: posX, y: posY, width: familySize, height: familySize};
 		}
 	}
-
 	return _families;
 }
 
@@ -250,15 +266,15 @@ function generateSubjects() {
 	 * infection status, velocity, family, time of infection, and
 	 * the current size of the drawnInfectionRadius.
 	 * 
-	 * ~returns: {int, int, bool, bool, float, float, int, int, int}
+	 * ~returns: {int, int, bool, bool, float, float, int, int, int, bool, int}
 	 */
 
 	var _subjects = [];
 	for (var i = 0; i < population; i++) {
-		var family = Math.floor(Math.random() * numOfFamilies);
+		var family = Math.floor(Math.random() * numOfFamilies) + 1;
 		var posX = families[family].x + Math.floor(Math.random() * familySize);
 		var posY = families[family].y + Math.floor(Math.random() * familySize);
-		_subjects[i] = {x: posX, y: posY, isInfected: false, isRemoved: false, velX: 0.0, velY: 0.0, family: family, timeOfInfection: 0, drawnInfectionRadius: 0}
+		_subjects[i] = {x: posX, y: posY, isInfected: false, isRemoved: false, velX: 0.0, velY: 0.0, homeFamily: family, timeOfInfection: 0, drawnInfectionRadius: 0, isTraveling: false, currentFamily: family, timer: 0, lastTime: 0}
 		
 		// Assigning the initially infected subject
 		if (i == population-1) {
@@ -273,6 +289,18 @@ function generateSubjects() {
 	return _subjects;
 }
 
+function travelTo(subject, family) {
+	subjects[subject].isTraveling = true;
+	subjects[subject].currentFamily = family;
+	var destinationX = families[family].x + families[family].width/2;
+	var destinationY = families[family].y + families[family].height/2;
+	var deltaX = destinationX - subjects[subject].x;
+	var deltaY = destinationY - subjects[subject].y;
+	var magnitude = Math.sqrt(Math.pow(deltaX, 2) + Math.pow(deltaY, 2))
+	subjects[subject].velX =  deltaX/magnitude * 4;
+	subjects[subject].velY = deltaY/magnitude * 4;
+}
+
 function updateSubjects() {
 	/* Randomizes each subjects' movement, updates their positions
 	 * according to their velocities, handles collision detection
@@ -285,73 +313,103 @@ function updateSubjects() {
 	 */
 
 	for (var i = 0; i < population; i++) {
-		var _family = families[subjects[i].family];
+		if (!subjects[i].isTraveling) {
+			var _family = families[subjects[i].currentFamily];
 
-		// Adds a random force to the subjects' current velocity
-		subjects[i].velX += (Math.floor(Math.random() * 3) - 1) * 0.1;
-		subjects[i].velY += (Math.floor(Math.random() * 3) - 1) * 0.1;
+			// Adds a random force to the subjects' current velocity.
+			subjects[i].velX += (Math.floor(Math.random() * 3) - 1) * inertialMultiplier;
+			subjects[i].velY += (Math.floor(Math.random() * 3) - 1) * inertialMultiplier;
 
-		// Prevents subjects from moving outside their family
-		if (Math.abs(subjects[i].x - _family.x) < 10) {
-			subjects[i].velX = 1
-		}
-			
-		if (_family.x+familySize - subjects[i].x < 10) {
-			subjects[i].velX = -1;
-		}
-		if (Math.abs(subjects[i].y - _family.y) < 10) {
-			subjects[i].velY = 1;
-		}
-		if (_family.y+familySize - subjects[i].y < 10) {
-			subjects[i].velY = -1;
-		}
+			// Prevents subjects from moving outside their family.
+			if (Math.abs(subjects[i].x - _family.x) < 10) {
+				subjects[i].velX = 1
+			}
+				
+			if (_family.x+_family.width - subjects[i].x < 10) {
+				subjects[i].velX = -1;
+			}
+			if (Math.abs(subjects[i].y - _family.y) < 10) {
+				subjects[i].velY = 1;
+			}
+			if (_family.y+_family.height - subjects[i].y < 10) {
+				subjects[i].velY = -1;
+			}
 
-		// Prevents subjects velocity from exceeding the maximum speed allowed
-		if (subjects[i].velX > subjectMaxVelocity) {
-			subjects[i].velX -= 0.1;
-		}
-		else if (subjects[i].velX < -subjectMaxVelocity) {
-			subjects[i].velX += 0.1;
-		}
-		if (subjects[i].velY > subjectMaxVelocity) {
-			subjects[i].velY -= 0.1;
-		}
-		else if (subjects[i].velY < -subjectMaxVelocity) {
-			subjects[i].velY += 0.1;
-		} 
+			// Prevents subjects velocity from exceeding the maximum speed allowed.
+			if (subjects[i].velX > subjectMaxVelocity) {
+				subjects[i].velX -= 0.1;
+			}
+			else if (subjects[i].velX < -subjectMaxVelocity) {
+				subjects[i].velX += 0.1;
+			}
+			if (subjects[i].velY > subjectMaxVelocity) {
+				subjects[i].velY -= 0.1;
+			}
+			else if (subjects[i].velY < -subjectMaxVelocity) {
+				subjects[i].velY += 0.1;
+			} 
 
-		// Applies subjects' velocity to move their position
-		subjects[i].x += subjects[i].velX;
-		subjects[i].y += subjects[i].velY;
-
-		// Checks to see if the infection has spread to the subject
-		if (!subjects[i].isInfected && !subjects[i].isRemoved) {
-			for (var j = 0; j < population; j++) {
-				if (subjects[j].isInfected) {
-					var distance = Math.sqrt(Math.pow(subjects[i].x - subjects[j].x, 2) + Math.pow(subjects[i].y - subjects[j].y, 2))
-					if (distance < infectivityRadius) {
-						if (infectivityRate > Math.random()) {
-							subjects[i].isInfected = true;
-							subjects[i].timeOfInfection = Date.now();
-							infectedPopulation++;
-							susceptiblePopulation--;
+			// Checks to see if the infection has spread to the subject.
+			if (!subjects[i].isInfected && !subjects[i].isRemoved) {
+				for (var j = 0; j < population; j++) {
+					if (subjects[j].isInfected) {
+						var distance = Math.sqrt(Math.pow(subjects[i].x - subjects[j].x, 2) + Math.pow(subjects[i].y - subjects[j].y, 2))
+						if (distance < infectivityRadius) {
+							if (infectivityRate > Math.random()) {
+								subjects[i].isInfected = true;
+								subjects[i].timeOfInfection = Date.now();
+								infectedPopulation++;
+								susceptiblePopulation--;
+							}
 						}
 					}
 				}
 			}
+
+			// Checks if an infected subject recovers.
+			if (subjects[i].isInfected) {
+				subjects[i].drawnInfectionRadius += 0.1;
+				if (subjects[i].drawnInfectionRadius > infectivityRadius) {
+					subjects[i].drawnInfectionRadius = subjectRadius;
+				}
+				if (Date.now() - subjects[i].timeOfInfection > durationOfInfection * 1000) {
+					subjects[i].isInfected = false;
+					subjects[i].isRemoved = true;
+					infectedPopulation--;
+					removedPopulation++;
+				}
+			}
+
+			// Manages how much time each subject has spent visiting a family or meeting zone.
+			if (subjects[i].currentFamily != subjects[i].homeFamily) {
+				subjects[i].timer += Date.now() - subjects[i].lastTime;
+				subjects[i].lastTime = Date.now();
+				if (subjects[i].timer > visitationDuration) {
+					travelTo(i, subjects[i].homeFamily);
+					subjects[i].timer = 0;
+				}
+			}
 		}
 
-		// Checks if an infected subject recovers
-		if (subjects[i].isInfected) {
-			subjects[i].drawnInfectionRadius += 0.1;
-			if (subjects[i].drawnInfectionRadius > infectivityRadius) {
-				subjects[i].drawnInfectionRadius = subjectRadius;
-			}
-			if (Date.now() - subjects[i].timeOfInfection > durationOfInfection * 1000) {
-				subjects[i].isInfected = false;
-				subjects[i].isRemoved = true;
-				infectedPopulation--;
-				removedPopulation++;
+		// Determines if a traveling subject is done traveling.
+		else if (isInside({x: subjects[i].x, y: subjects[i].y}, families[subjects[i].currentFamily])) {	
+			subjects[i].isTraveling = false;
+			subjects[i].lastTime = Date.now();
+		}
+
+		// Applies subjects' velocity to move their position.
+		subjects[i].x += subjects[i].velX;
+		subjects[i].y += subjects[i].velY;
+	}
+	
+	// Determines if a subject will go to the meeting zone.
+	visitationTimer += Date.now() - visitationLastTime;
+	visitationLastTime = Date.now();
+	if (visitationTimer > visitationRate) {
+		visitationTimer = 0;
+		for (var i = 0; i < population; i++) {
+			if (Math.random() < visitationChance*meetingDistancing) {
+				travelTo(i, 0)
 			}
 		}
 	}
@@ -364,10 +422,11 @@ function updateChart() {
 	 * ~returns: void
 	 */
 
-	timer += Date.now() - lastTime;
-	lastTime = Date.now();
-	if (timer > updateRate) {
-		timer = 0;
+	chartTimer += Date.now() - chartLastTime;
+	chartLastTime = Date.now();
+
+	if (chartTimer > updateRate) {
+		chartTimer = 0;
 		seconds++;
 		chart.data.labels.push(seconds);
 		chart.data.datasets[SUSCEPTIBLE].data.push(susceptiblePopulation);
@@ -427,7 +486,7 @@ function draw() {
 	 */
 
 	// Families
-	for (var i = 0; i < numOfFamilies; i++) {
+	for (var i = 0; i <= numOfFamilies; i++) {
 		drawRect(simCtx, families[i].x, families[i].y, families[i].width, families[i].height, familyColor, true);
 	}
 
