@@ -41,7 +41,7 @@ var commonZone = false;
 var infectivityRate = 0.1;
 var infectivityRadius = 20;
 var socialDistancing = 1.0;
-var interfamilyDistancing = 1.0;
+var interfamilyDistancing = 0.0;
 var meetingDistancing = 0.0;
 var durationOfInfection = 15; // seconds
 var meetingZoneSize = 100;
@@ -63,8 +63,10 @@ var SUSCEPTIBLE = 0;
 var susceptiblePopulation = population - 1;
 var REMOVED = 2;
 var removedPopulation = 0;
-var visitationTimer = 0;
-var visitationLastTime = Date.now();
+var meetingVisitationTimer = 0;
+var meetingVisitationLastTime = Date.now();
+var familyVisitationTimer = 0;
+var familyVisitationLastTime = Date.now();
 var visitationRate = 1000 // miliseconds
 var visitationChance = 0.02;
 var chartTimer = 0;
@@ -403,13 +405,27 @@ function updateSubjects() {
 	}
 	
 	// Determines if a subject will go to the meeting zone.
-	visitationTimer += Date.now() - visitationLastTime;
-	visitationLastTime = Date.now();
-	if (visitationTimer > visitationRate) {
-		visitationTimer = 0;
+	meetingVisitationTimer += Date.now() - meetingVisitationLastTime;
+	meetingVisitationLastTime = Date.now();
+	if (meetingVisitationTimer > visitationRate) {
+		meetingVisitationTimer = 0;
 		for (var i = 0; i < population; i++) {
 			if (Math.random() < visitationChance*meetingDistancing) {
 				travelTo(i, 0)
+			}
+		}
+	}
+	familyVisitationTimer += Date.now() - familyVisitationLastTime;
+	familyVisitationLastTime = Date.now();
+	if (familyVisitationTimer > visitationRate) {
+		familyVisitationTimer = 0;
+		for (var i = 0; i < population; i++) {
+			if (Math.random() < visitationChance*interfamilyDistancing) {
+				var newFamily = subjects[i].homeFamily;
+				while (newFamily == subjects[i].homeFamily) {
+					newFamily = Math.ceil(Math.random() * numOfFamilies)
+				}
+				travelTo(i, newFamily)
 			}
 		}
 	}
