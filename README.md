@@ -12,7 +12,7 @@ Before you can run this program, ensure that you have the following software ins
 
 ## Running
 1. To run the program simply open [__index.html__](intex.html) using your prefered browser.
-2. Once the application is open in your browser you can adjust the settings of the simulation to see how diffent preventative measures can help slow the spread of the pathogen.
+2. Once the application is open in your browser you can adjust the settings of the simulation to see how different preventative measures can help slow the spread of the pathogen.
 
 ## Authors
 * [**Ethan Genser**](https://github.com/Ethan-Genser) - *Creator*
